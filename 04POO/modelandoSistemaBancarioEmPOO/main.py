@@ -2,8 +2,8 @@
 # Precisamos implementar o sistema UML apresentado na imagem, utilizando POO no sistema bancário desenvolvido anteriormente
 
 import textwrap
-from abc import ABC
-from datetime import datatime
+from abc import ABC, abstractmethod
+from datetime import datetime
 
 
 class Deposito:
@@ -17,7 +17,7 @@ class Saque:
 
 
 class Transacao(ABC, Deposito, Saque):
-    @asbstractmethod
+    @abstractmethod
     def __init__(self):
         pass
 
@@ -26,7 +26,7 @@ class Transacao(ABC, Deposito, Saque):
         pass
 
 
-class Cliente(Transacao):
+class Cliente:
     def __init__(self, endereco):
         self._endereco = endereco
         self._contas = []
@@ -36,6 +36,10 @@ class Cliente(Transacao):
 
     def adicionar_conta(self, conta):
         self._contas.append(conta)
+
+    @property
+    def contas(self):
+        return self._contas
 
 
 class PessoaFisica(Cliente):
@@ -124,7 +128,7 @@ class Conta:
 
 class ContaCorrente(Conta):
     def __init__(self, numero, cliente,  limite=500, limite_saques=3):
-        super.__init__(numero, cliente)
+        super().__init__(numero, cliente)
         self._limite = limite
         self._limite_saques = limite_saques
 
@@ -185,7 +189,7 @@ class Historico:
             {
                 "tipo": transacao.__class__.__name__,
                 "valor": transacao.valor,
-                "data": datatime.now().strftime("%d-%m-%Y %H:%M%s"),
+                "data": datetime.now().strftime("%d-%m-%Y %H:%M%s"),
             }
         )
 
@@ -238,7 +242,6 @@ def menu():
         [e]\tExtrato
         [u]\tCriar Usuário
         [c]\tCriar Conta
-        [mu]\tMostrar Usuários
         [mc]\tMostrar Contas
         [q]\tSair
 
@@ -247,25 +250,27 @@ def menu():
 
 
 def recuperar_conta_cliente(cliente):
-    if not cliente.conta:
+    if not cliente.contas:
         print("Operação falou. O cliente não possui conta neste banco.")
         return False
 
     else:
-        print(f"O cliente '{cliente.name}' possui as contas:")
-        for conta in cliente.conta:
+        print(f"O cliente '{cliente.nome}' possui as contas:")
+        for conta in cliente.contas:
             print(conta)
         conta = int(
-            input("Qual conta gostaria de utilizar para esta operação?"))
-        return conta
+            input("Digite a conta que gostaria de utilizar para esta operação: "))
+
+        return cliente.contas[conta-1]
 
 
 def depositar(clientes):
-    cpf = input("Informe o CPF do cliente")
+    cpf = input("Informe o CPF do cliente: ")
     cliente = filtrar_cliente(cpf, clientes)
 
     if not cliente:
         print("Cliente não encontrado.")
+        return False
 
     valor = float(input("Informe o valor do depósito: "))
     transacao = Deposito(valor)
@@ -273,18 +278,20 @@ def depositar(clientes):
     conta = recuperar_conta_cliente(cliente)
 
     if not conta:
-        print("Operação falhou. Este usuário não possui conta neste banco.")
+        print("Operação falhou! Este usuário não possui conta neste banco.")
         return False
     else:
         cliente.realizar_transacao(conta, transacao)
+        return True
 
 
 def sacar(clientes):
-    cpf = input("Informe o CPF do cliente")
+    cpf = input("Informe o CPF do cliente: ")
     cliente = filtrar_cliente(cpf, clientes)
 
     if not cliente:
         print("Cliente não encontrado.")
+        return False
 
     valor = float(input("Informe o valor do saque: "))
     transacao = Saque(valor)
@@ -292,19 +299,44 @@ def sacar(clientes):
     conta = recuperar_conta_cliente(cliente)
 
     if not conta:
-        print("Operação falhou. Este usuário não possui conta neste banco.")
+        print("Operação falhou! Este usuário não possui conta neste banco.")
         return False
     else:
         cliente.realizar_transacao(conta, transacao)
+        return True
 
 # a função extrato deve ser feita de modo que os parametros sejam positional only e keyword only
 
 
 def visualizar_extrato(clientes):
-    print('\n ============== Extrato ===============')
-    print('Não foram realizados movimentações.' if not extrato else extrato)
-    print(f'\tSaldo:\t\tR$ {saldo:.2f}')
-    print('=========================================')
+    cpf = input("Informe o CPF do cliente: ")
+    cliente = filtrar_cliente(cpf, clientes)
+
+    if not cliente:
+        print("Operação falhou! Cliente não encontrado.")
+        return False
+
+    conta = recuperar_conta_cliente(cliente)
+
+    if not conta:
+        print('Operação falhou! Este usuário não possui conta neste banco.')
+        return False
+    else:
+        print('\n ============== Extrato ===============')
+        transacoes = conta.historico.transacoes
+
+        extrato = ""
+        if not transacoes:
+            extrato = 'Não foram realizados movimentações.'
+        else:
+            for transacao in transacoes:
+                extrato += f'\n{transacao['tipo']
+                                }:\n\tR${transacao['valor']:.2f}'
+
+        print(extrato)
+        print(f'\nSaldo:\n\tR$ {conta.saldo:.2f}')
+        print('\n ======================================')
+        return True
 
 
 # ==========================================
@@ -312,63 +344,40 @@ def visualizar_extrato(clientes):
 
 # criando a função para criar usuário com os atributos de nome, data de nascimento, cpf (sem repetição) e endereço
 def criar_usuario(clientes):
+    cpf = input("Informe o CPF do cliente: ")
+    cliente = filtrar_cliente(cpf, clientes)
 
-    nome = input('Nome do novo usuário: Brenddon Oliveira\n')
-    data_de_nascimento = input('Data de nascimento: dd-mm-aa\n')
-    cpf = input('CPF: 11122233344\n')
-    for user in clientes:
-        if cpf == user['cpf']:
-            print('Operação falhou! Já existe um usuário com este CPF.')
-            return False
-    endereco = input(
-        'Endereço: logradouro, número - bairro - cidade/sigla do estado.\n')
+    if cliente:
+        print("Operação falhou! Este cliente já esta cadastrado no banco.")
+        return False
+    else:
+        nome = input('Informe o nome completo: ')
+        data_nascimento = input('Informe a data de nascimento (dd-mm-aaaa): ')
+        endereco = input(
+            'Informe o endereço (lagradouro, numero, bairro - cidade/sigla estado): ')
 
-    novo_usuario = {'nome': nome, 'data_de_nascimento': data_de_nascimento,
-                    'cpf': cpf, 'endereco': endereco}
-    clientes.append(novo_usuario)
-    return True
+        cliente = PessoaFisica(
+            nome=nome, data_nascimento=data_nascimento, cpf=cpf, endereco=endereco)
+
+        clientes.append(cliente)
+        print('Cliente criado com sucesso.')
+        return True
 
 
 # criando conta corrente composta por: agência, número da conta e usuário. O número da conta deve ser sequencial, iniciado em 1. O número da agência é fixo: '0001'. O usuário pode ter mais de uma conta, mas  uma conta pertence a somente um usuário
-def criar_conta(contas, clientes):
-    if not contas:
-        conta = 1
-    else:
-        # pegando a última conta criada
-        conta = len(contas) + 1
+def criar_conta(numero_conta, clientes, contas):
+    cpf = input("Informe o CPF do cliente: ")
+    cliente = filtrar_cliente(cpf, clientes)
 
-    agencia = '0001'
-
-    # obtendo lista de cpfs
-    lista_cpf = pegar_listas_de_cpfs(clientes)
-
-    cpf = input('CPF a vincular na conta: 11122233344\nCPF: ')
-    if cpf in lista_cpf:
-        conta = {'id_usuario': cpf, 'conta': conta, 'agencia': agencia}
-        contas.append(conta)
-        return True
-    else:
-        print('Operação falhou! Não existe um usuário cadastrado com este CPF. Crie um usuário antes de realizar esta operação.')
+    if not cliente:
+        print("Operação falhou! Cliente não encontrado.")
         return False
-
-
-# extra ====================
-def mostrar_usuarios(lista_de_usuarios):
-    if not lista_de_usuarios:
-        print('Lista de usuários ainda está vazia.')
-    for usuario in lista_de_usuarios:
-        for key, value in usuario.items():
-            print(f'{key}: {value}')
-        print('')
-
-
-def mostrar_contas(lista_de_contas):
-    if not lista_de_contas:
-        print('Lista de contas ainda está vazia.')
-    for conta in lista_de_contas:
-        for key, value in conta.items():
-            print(f'{key}: {value}')
-        print('')
+    else:
+        conta = ContaCorrente.nova_conta(cliente=cliente, numero=numero_conta)
+        contas.append(conta)
+        cliente.adicionar_conta(conta)
+        print('Conta criada com sucesso.')
+        return True
 
 
 def filtrar_cliente(cpf, clientes):
@@ -378,6 +387,12 @@ def filtrar_cliente(cpf, clientes):
             return cliente
 
     return False
+
+
+def listar_contas(contas):
+    for conta in contas:
+        print("="*100)
+        print(textwrap.dedent(str(conta)))
 
 
 def main():
@@ -401,13 +416,11 @@ def main():
             criar_usuario(clientes)
 
         elif opcao == 'c':
-            criar_conta(contas, clientes)
-
-        elif opcao == 'mu':
-            mostrar_usuarios(lista_de_usuarios)
+            numero_conta = len(contas)+1
+            criar_conta(numero_conta, clientes, contas)
 
         elif opcao == 'mc':
-            mostrar_contas(lista_de_contas)
+            listar_contas(contas)
 
         elif opcao == 'q':
             break
